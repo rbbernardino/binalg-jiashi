@@ -1,5 +1,6 @@
 #include "utils.h"
-#include "binalgorithms.h"
+#include "binalgorithms.hpp"
+#include "JiaShi.hpp"
 
 // OBS: capture execution time using <chrono> lib, default since C++11
 bool binarizeImage(Mat imageIN, string fnameOUT, int algCode, int windowSize) {
@@ -169,6 +170,14 @@ bool binarizeImage(Mat imageIN, string fnameOUT, int algCode, int windowSize) {
             imageOUT.data = binaryImage.data;
             timeInNano = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
             break;
+        }
+        case AlgCode::JiaShi: {
+            auto start = std::chrono::high_resolution_clock::now();
+            parameters.Set("niblack_window", 60);
+            parameters.Set("niblack_k", -0.2f);
+            imageOUT = DibAlgs::JiaShi::ToBinary(image, parameters);
+            auto finish = std::chrono::high_resolution_clock::now();
+            timeInNano = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
         }
     }
     std::cout << timeInNano << ";";

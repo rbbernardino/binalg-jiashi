@@ -10,8 +10,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 
 find_package( OpenCV REQUIRED )
 
-set(HEADERS utils.h binalgorithms.h)
-set(SOURCES cppbinarize.cpp utils.cpp binalgorithms.cpp args.hxx)
+set(HEADERS utils.h binalgorithms.hpp)
+set(SOURCES cppbinarize.cpp utils.cpp binalgorithms.cpp args.hxx JiaShi.hpp)
 
 include_directories("doxa")
 

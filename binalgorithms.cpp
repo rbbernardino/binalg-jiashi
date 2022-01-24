@@ -1,3 +1,3 @@
-#include "binalgorithms.h"
+#include "binalgorithms.hpp"
 #include "utils.h"
 
