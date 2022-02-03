@@ -175,7 +175,7 @@ bool binarizeImage(Mat imageIN, string fnameOUT, int algCode, int windowSize) {
             auto start = std::chrono::high_resolution_clock::now();
             parameters.Set("niblack_window", 60);
             parameters.Set("niblack_k", -0.2f);
-            imageOUT = DibAlgs::JiaShi::ToBinary(image, parameters);
+            imageOUT = DibAlgs::JiaShi::ToBinary(grayImageIN, parameters);
             auto finish = std::chrono::high_resolution_clock::now();
             timeInNano = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
         }
