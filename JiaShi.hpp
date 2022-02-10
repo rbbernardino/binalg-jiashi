@@ -49,15 +49,17 @@ namespace DibAlgs {
             // estimate the background
             Mat estimatedBG = FindEstimatedBackground(grayImageIn, dilatedNiblackRestored);
 
-            imwrite("../test/3a_niblack.png", binImageNiblack);
-            imwrite("../test/3b_inverted_niblack.png", invertedNiblack);
-            imwrite("../test/3c_dilated_inverted_niblack.png", dilatedNiblack);
-            imwrite("../test/3d_dilated_restored_niblack.png", dilatedNiblackRestored);
-            imwrite("../test/3e_estimated_BG.png", estimatedBG);
+//            imwrite("../test/3a_niblack.png", binImageNiblack);
+//            imwrite("../test/3b_inverted_niblack.png", invertedNiblack);
+//            imwrite("../test/3c_dilated_inverted_niblack.png", dilatedNiblack);
+//            imwrite("../test/3d_dilated_restored_niblack.png", dilatedNiblackRestored);
+//            imwrite("../test/3e_estimated_BG.png", estimatedBG);
 
-//            binImageOut.data = binImageNiblack.data;
-//            std::memcpy(binImageOut.data, binImageNiblack.data, binImageNiblack.size);
-            return estimatedBG;
+            Mat normalizedI = NormalizeImage(grayImageIn, estimatedBG);
+
+            imwrite("../test/4_normalized.png", normalizedI);
+
+            return normalizedI;
         }
 
     private:
@@ -274,12 +276,31 @@ namespace DibAlgs {
                 }
             }
 
-            imwrite("../test/P_1.png", P1_lrtb);
-            imwrite("../test/P_2.png", P2_lrbt);
-            imwrite("../test/P_3.png", P3_rltb);
-            imwrite("../test/P_4.png", P4_rlbt);
+//            imwrite("../test/P_1.png", P1_lrtb);
+//            imwrite("../test/P_2.png", P2_lrbt);
+//            imwrite("../test/P_3.png", P3_rltb);
+//            imwrite("../test/P_4.png", P4_rlbt);
 
             return estimatedBG;
+        }
+
+        static Mat NormalizeImage(Mat I_originalImage, Mat B_estimatedBackground) {
+            long I_height = I_originalImage.rows;
+            long I_width = I_originalImage.cols;
+
+            Mat Inorm(I_height, I_width, CV_8UC1);
+            for (auto y_i = 0; y_i < I_height; y_i++) {
+                for (auto x_i = 0; x_i < I_width; x_i++) {
+                    uchar current_I = I_originalImage.at<uchar>(y_i, x_i);
+                    uchar current_B = B_estimatedBackground.at<uchar>(y_i, x_i);
+                    if (current_B > 0 && current_I < current_B) {
+                        Inorm.at<uchar>(y_i, x_i) = 255 * current_I / current_B;
+                    } else {
+                        Inorm.at<uchar>(y_i, x_i) = 255;
+                    }
+                }
+            }
+            return Inorm;
         }
     };
 }
