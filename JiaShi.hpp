@@ -19,6 +19,13 @@ namespace DibAlgs {
         static Mat ToBinary(const cv::Mat &grayImageIn, const Doxa::Parameters &allParameters) {
             Mat binImageOut(grayImageIn.rows, grayImageIn.cols, CV_8UC1);
 
+            Mat gradientMap = ComputeGradientMap(grayImageIn, allParameters);
+
+            return gradientMap;
+        }
+
+    private:
+        static Mat ComputeGradientMap(const cv::Mat &grayImageIn, const Doxa::Parameters &allParameters) {
             // binarize with Doxa Niblack implementation
             Doxa::Parameters niblackParameters(Doxa::ParameterMap({
                                                                           {"window", allParameters.Get("niblack_window",
@@ -55,14 +62,27 @@ namespace DibAlgs {
 //            imwrite("../test/3d_dilated_restored_niblack.png", dilatedNiblackRestored);
 //            imwrite("../test/3e_estimated_BG.png", estimatedBG);
 
-            Mat normalizedI = NormalizeImage(grayImageIn, estimatedBG);
+            Mat normalizedI(grayImageIn.rows, grayImageIn.cols,
+//                             CV_32FC1);
+                            CV_8UC1);
+            NormalizeImage(grayImageIn, estimatedBG, normalizedI);
 
-            imwrite("../test/4_normalized.png", normalizedI);
+//            imwrite("../test/4_normalized.png", normalizedI);
 
-            return normalizedI;
+
+            // o artigo diz usar o operador Schaar, porém eu testei com ele e os resultados não batem
+            // Talvez seja a normalizacão "c" mencionada para converter o resultado do gradiente em 0~255
+            // Ele detalha dizendo qual o valor de "c", mas usei o conversor padrão do OpenCV
+            // Como o operador Sobel dá um resultado mais próximo do que é mostrado noa artigo, resolvi usar ele
+            Mat gradientMap;
+//            ApplyModifiedSobel(normalizedI, gradientMap, 0.5);
+            ApplyOpenCVSobel(normalizedI, gradientMap);
+
+//            imwrite("../test/5_gradientMap.png", gradientMap);
+
+            return gradientMap;
         }
 
-    private:
         static Mat FindEstimatedBackground(Mat I_originalImage, const Mat IM_inpaintingMask) {
             long I_height = I_originalImage.rows;
             long I_width = I_originalImage.cols;
@@ -284,23 +304,77 @@ namespace DibAlgs {
             return estimatedBG;
         }
 
-        static Mat NormalizeImage(Mat I_originalImage, Mat B_estimatedBackground) {
+        static void NormalizeImage(Mat I_originalImage, Mat B_estimatedBackground, Mat &dst) {
             long I_height = I_originalImage.rows;
             long I_width = I_originalImage.cols;
 
-            Mat Inorm(I_height, I_width, CV_8UC1);
             for (auto y_i = 0; y_i < I_height; y_i++) {
                 for (auto x_i = 0; x_i < I_width; x_i++) {
                     uchar current_I = I_originalImage.at<uchar>(y_i, x_i);
                     uchar current_B = B_estimatedBackground.at<uchar>(y_i, x_i);
                     if (current_B > 0 && current_I < current_B) {
-                        Inorm.at<uchar>(y_i, x_i) = 255 * current_I / current_B;
+//                        dst.at<float>(y_i, x_i) = 255.0 * current_I / current_B;
+                        dst.at<uchar>(y_i, x_i) = 255 * current_I / current_B;
                     } else {
-                        Inorm.at<uchar>(y_i, x_i) = 255;
+//                        dst.at<float>(y_i, x_i) = 255;
+                        dst.at<uchar>(y_i, x_i) = 255;
                     }
                 }
             }
-            return Inorm;
+        }
+
+        static void ApplyOpenCVSobel(const Mat &src, Mat &dst) {
+            Mat gradientMapX, gradientMapY, absGradientMapX, absGradientMapY;
+//            cv::Scharr(src, gradientMapX, CV_8U, 1, 0);
+//            cv::Scharr(src, gradientMapY, CV_8U, 0, 1);
+
+            cv::Sobel(src, gradientMapX, CV_8U, 1, 0);
+            cv::Sobel(src, gradientMapY, CV_8U, 0, 1);
+
+            cv::convertScaleAbs(gradientMapX, absGradientMapX);
+            cv::convertScaleAbs(gradientMapY, absGradientMapY);
+
+            cv::addWeighted(absGradientMapX, 0.5, absGradientMapY, 0.5, 0, dst);
+        }
+
+        static void ApplyModifiedSobel(const Mat &src, Mat &dst, const float c_normalizer) {
+            Mat G_x = Mat::zeros(3, 3, CV_32F);
+            G_x.at<float>(0, 0) = -3;
+            G_x.at<float>(0, 2) = 3;
+            G_x.at<float>(1, 0) = -10;
+            G_x.at<float>(1, 2) = 10;
+            G_x.at<float>(2, 0) = -3;
+            G_x.at<float>(2, 2) = 3;
+
+            Mat G_y = Mat::zeros(3, 3, CV_32F);
+            G_y.at<float>(0, 0) = -3;
+            G_y.at<float>(2, 0) = 3;
+            G_y.at<float>(0, 1) = -10;
+            G_y.at<float>(2, 1) = 10;
+            G_y.at<float>(0, 2) = -3;
+            G_y.at<float>(2, 2) = 3;
+
+            Mat Iconv_x(src.rows, src.cols, CV_32FC1);
+            filter2D(src, Iconv_x, -1, G_x); //, Point(-1,-1), 0, BORDER_DEFAULT);
+
+            Mat Iconv_y(src.rows, src.cols, CV_32FC1);
+            filter2D(src, Iconv_y, -1, G_y); //, Point(-1,-1), 0, BORDER_DEFAULT);
+
+            // a "L1-norm" é a soma dos valores absolutos das matrizes
+            Mat abs_Iconv_y, abs_Iconv_x;
+            cv::convertScaleAbs(Iconv_y, abs_Iconv_y);
+            cv::convertScaleAbs(Iconv_x, abs_Iconv_x);
+            cv::addWeighted(abs_Iconv_y, c_normalizer, abs_Iconv_x, c_normalizer, 0, dst);
+//            dst = (abs_Iconv_x + abs_Iconv_y) * 0.5;
+
+            // --------------------------------------------------------
+//            double minVal;
+//            double maxVal;
+//            Point minLoc;
+//            Point maxLoc;
+//            minMaxLoc(dst, &minVal, &maxVal, &minLoc, &maxLoc);
+//            cout << "min val: " << minVal << endl;
+//            cout << "max val: " << maxVal << endl;
         }
     };
 }
