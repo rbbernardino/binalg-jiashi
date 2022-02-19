@@ -4,14 +4,14 @@
 #define PARAMETERS_HPP
 
 #include <map>
-#include <variant>
+#include "variant.hpp"
 #include <string>
 #include "Types.hpp"
 
 
 namespace Doxa
 {
-	typedef std::variant<int, double> ParameterValue;
+	typedef mpark::variant<int, double> ParameterValue;
 	typedef std::map<std::string, ParameterValue> ParameterMap;
 
 	/// <summary>
@@ -33,7 +33,7 @@ namespace Doxa
 			}
 			else
 			{
-				return std::get<Type>(pos->second);
+				return mpark::get<Type>(pos->second);
 			}
 		}
 

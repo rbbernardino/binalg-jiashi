@@ -102,7 +102,7 @@ namespace Doxa
 		/// Note: While this algorithm does not have a fixed Windows Size nor K value, it does have these magic numbers.
 		/// I believe these numbers assume an image of a certain size, with a certain resolution or character size.
 		/// </summary>
-		void inline constexpr PrimaryWindow(int& primaryWidth, int& primaryHeight, double p, double sigmaGlobal, Pixel8 maxGray, int imageWidth, int imageHeight)
+		void inline PrimaryWindow(int& primaryWidth, int& primaryHeight, double p, double sigmaGlobal, Pixel8 maxGray, int imageWidth, int imageHeight)
 		{
 
 			if (p >= 2.5 || (sigmaGlobal < 0.1*maxGray))

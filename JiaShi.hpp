@@ -10,6 +10,10 @@
 #include "doxa/Parameters.hpp"
 #include "doxa/Image.hpp"
 
+// for debug
+#include <iostream>
+#include <fstream>
+
 using namespace cv;
 
 
@@ -21,10 +25,96 @@ namespace DibAlgs {
 
             Mat gradientMap = ComputeGradientMap(grayImageIn, allParameters);
 
+            float E_evalVet[256];
+            multiApplyEvaluationFunction(gradientMap, E_evalVet);
+
             return gradientMap;
         }
 
     private:
+        static void multiApplyEvaluationFunction(Mat gradientMap, float E_evalVet[]) {
+            Mat binGradientVet[256];
+            Mat f_discriminantVet[256];
+            for (int t_threshold = 0; t_threshold < 256; t_threshold++) {
+                binGradientVet[t_threshold] = Mat(gradientMap.rows, gradientMap.cols, CV_8UC1);
+                threshold(gradientMap, binGradientVet[t_threshold], t_threshold, 1, CV_8UC1);
+
+                f_discriminantVet[t_threshold] = Mat(gradientMap.rows, gradientMap.cols, CV_8UC1);
+
+                int f_sum = 0;
+                for (auto y_i = 0; y_i < gradientMap.rows; y_i++) {
+                    for (auto x_i = 0; x_i < gradientMap.cols; x_i++) {
+                        // check N_xy, neighborhood 8-connected pixels, looking for at least one non-edge pixel
+                        uchar pixel_topleft = binGradientVet[t_threshold].at<uchar>(y_i - 1, x_i - 1);
+                        uchar pixel_top = binGradientVet[t_threshold].at<uchar>(y_i - 1, x_i);
+                        uchar pixel_left = binGradientVet[t_threshold].at<uchar>(y_i, x_i - 1);
+                        uchar pixel_right = binGradientVet[t_threshold].at<uchar>(y_i, x_i + 1);
+                        uchar pixel_bottomleft = binGradientVet[t_threshold].at<uchar>(y_i + 1, x_i - 1);
+                        uchar pixel_bottom = binGradientVet[t_threshold].at<uchar>(y_i + 1, x_i);
+                        uchar pixel_bottomright = binGradientVet[t_threshold].at<uchar>(y_i + 1, x_i + 1);
+
+                        // if at least one 0 is present => AND operation will make the result turns 0
+                        bool has_nonedge_in_Nxy =
+                                pixel_topleft && pixel_top && pixel_left && pixel_right && pixel_bottomleft &&
+                                pixel_bottom && pixel_bottomright;
+
+                        // calculates f_edge => the discriminant function
+                        uchar cur_gradientBinXy = binGradientVet[t_threshold].at<uchar>(y_i, x_i);
+                        if (cur_gradientBinXy == 1 && has_nonedge_in_Nxy)
+                            f_discriminantVet[t_threshold].at<uchar>(y_i, x_i) = 1;
+                        else
+                            f_discriminantVet[t_threshold].at<uchar>(y_i, x_i) = 0;
+                        f_sum += f_discriminantVet[t_threshold].at<uchar>(y_i, x_i);
+                    }
+                }
+                //                imwrite("../test/multi-grad/binGradient_t" + std::to_string(t_threshold) + ".png", binGradient_t);
+
+                // calculates N_cc => the number of connected components in the image
+                // by default, OpenCV uses 8-way connected components
+                Mat labelImage(binGradientVet[t_threshold].size(), CV_32S);
+                int N_connected_comp = cv::connectedComponents(binGradientVet[t_threshold], labelImage);
+
+                E_evalVet[t_threshold] = (float) f_sum / (float) N_connected_comp;
+
+                // ===================== DEBUG ==========================
+//            cout << "t: " << t_threshold << "   f_sum: " << f_sum << "    Ncc: " << N_connected_comp << endl;
+//                if (t_threshold == 65) {
+//                    saveConnectedComponentsImage(N_connected_comp, binGradientVet[t_threshold], labelImage);
+//                }
+            }
+            // ===================== DEBUG ==========================
+            // save E(t) values => histogram for plotting later
+            ofstream out_csv;
+            out_csv.open("../test/8_Et_histogram.csv");
+            out_csv << "t,Et" << endl;
+            for(auto t = 0; t < 256; t++) {
+                out_csv << t << "," << E_evalVet[t] << endl;
+            }
+        }
+
+        /**
+         * For debugging purposes
+         *     image generation from OpenCV docs:
+         *     https://docs.opencv.org/4.x/de/d01/samples_2cpp_2connected_components_8cpp-example.html#a3
+         */
+        static void saveConnectedComponentsImage(int nLabels, Mat img, Mat labelImage) {
+            cout << "Connected components: " << nLabels << endl;
+            std::vector<Vec3b> colors(nLabels);
+            colors[0] = Vec3b(0, 0, 0);//background
+            for (int label = 1; label < nLabels; ++label) {
+                colors[label] = Vec3b((rand() & 255), (rand() & 255), (rand() & 255));
+            }
+            Mat dst(img.size(), CV_8UC3);
+            for (int r = 0; r < dst.rows; ++r) {
+                for (int c = 0; c < dst.cols; ++c) {
+                    int label = labelImage.at<int>(r, c);
+                    Vec3b &pixel = dst.at<Vec3b>(r, c);
+                    pixel = colors[label];
+                }
+            }
+            imwrite("../test/connected.png", dst);
+        }
+
         static Mat ComputeGradientMap(const cv::Mat &grayImageIn, const Doxa::Parameters &allParameters) {
             // binarize with Doxa Niblack implementation
             Doxa::Parameters niblackParameters(Doxa::ParameterMap({
@@ -67,7 +157,7 @@ namespace DibAlgs {
                             CV_8UC1);
             NormalizeImage(grayImageIn, estimatedBG, normalizedI);
 
-//            imwrite("../test/4_normalized.png", normalizedI);
+//            imwrite("../test/4_normalized_ex6.png", normalizedI);
 
 
             // o artigo diz usar o operador Schaar, porém eu testei com ele e os resultados não batem
@@ -325,11 +415,11 @@ namespace DibAlgs {
 
         static void ApplyOpenCVSobel(const Mat &src, Mat &dst) {
             Mat gradientMapX, gradientMapY, absGradientMapX, absGradientMapY;
-//            cv::Scharr(src, gradientMapX, CV_8U, 1, 0);
-//            cv::Scharr(src, gradientMapY, CV_8U, 0, 1);
+//            cv::Scharr(src, gradientMapX, CV_32F, 1, 0);
+//            cv::Scharr(src, gradientMapY, CV_32F, 0, 1);
 
-            cv::Sobel(src, gradientMapX, CV_8U, 1, 0);
-            cv::Sobel(src, gradientMapY, CV_8U, 0, 1);
+            cv::Sobel(src, gradientMapX, CV_32F, 1, 0);
+            cv::Sobel(src, gradientMapY, CV_32F, 0, 1);
 
             cv::convertScaleAbs(gradientMapX, absGradientMapX);
             cv::convertScaleAbs(gradientMapY, absGradientMapY);
@@ -354,6 +444,7 @@ namespace DibAlgs {
             G_y.at<float>(0, 2) = -3;
             G_y.at<float>(2, 2) = 3;
 
+            // ddepth = -1 ==> same as source, which is this case will be CV_32F
             Mat Iconv_x(src.rows, src.cols, CV_32FC1);
             filter2D(src, Iconv_x, -1, G_x); //, Point(-1,-1), 0, BORDER_DEFAULT);
 
