@@ -47,16 +47,17 @@ namespace DibAlgs {
                         // check N_xy, neighborhood 8-connected pixels, looking for at least one non-edge pixel
                         uchar pixel_topleft = binGradientVet[t_threshold].at<uchar>(y_i - 1, x_i - 1);
                         uchar pixel_top = binGradientVet[t_threshold].at<uchar>(y_i - 1, x_i);
-                        uchar pixel_left = binGradientVet[t_threshold].at<uchar>(y_i, x_i - 1);
+                        uchar pixel_topright = binGradientVet[t_threshold].at<uchar>(y_i - 1, x_i + 1);
                         uchar pixel_right = binGradientVet[t_threshold].at<uchar>(y_i, x_i + 1);
-                        uchar pixel_bottomleft = binGradientVet[t_threshold].at<uchar>(y_i + 1, x_i - 1);
-                        uchar pixel_bottom = binGradientVet[t_threshold].at<uchar>(y_i + 1, x_i);
                         uchar pixel_bottomright = binGradientVet[t_threshold].at<uchar>(y_i + 1, x_i + 1);
+                        uchar pixel_bottom = binGradientVet[t_threshold].at<uchar>(y_i + 1, x_i);
+                        uchar pixel_bottomleft = binGradientVet[t_threshold].at<uchar>(y_i + 1, x_i - 1);
+                        uchar pixel_left = binGradientVet[t_threshold].at<uchar>(y_i, x_i - 1);
 
                         // if at least one 0 is present => AND operation will make the result turns 0
                         bool has_nonedge_in_Nxy =
                                 pixel_topleft && pixel_top && pixel_left && pixel_right && pixel_bottomleft &&
-                                pixel_bottom && pixel_bottomright;
+                                pixel_bottom && pixel_bottomright && pixel_topright;
 
                         // calculates f_edge => the discriminant function
                         uchar cur_gradientBinXy = binGradientVet[t_threshold].at<uchar>(y_i, x_i);
@@ -80,16 +81,20 @@ namespace DibAlgs {
 //            cout << "t: " << t_threshold << "   f_sum: " << f_sum << "    Ncc: " << N_connected_comp << endl;
 //                if (t_threshold == 65) {
 //                    saveConnectedComponentsImage(N_connected_comp, binGradientVet[t_threshold], labelImage);
+//                    Mat tempGradientBin(gradientMap.rows, gradientMap.cols, CV_8UC1);
+//                    threshold(gradientMap, tempGradientBin, t_threshold, 255, CV_8UC1);
+//                    imwrite("../test/ex1_gradientMap.png", gradientMap);
+//                    imwrite("../test/ex1_gradientBin_t65.png", tempGradientBin);
 //                }
             }
             // ===================== DEBUG ==========================
             // save E(t) values => histogram for plotting later
-            ofstream out_csv;
-            out_csv.open("../test/8_Et_histogram.csv");
-            out_csv << "t,Et" << endl;
-            for(auto t = 0; t < 256; t++) {
-                out_csv << t << "," << E_evalVet[t] << endl;
-            }
+//            ofstream out_csv;
+//            out_csv.open("../test/8_Et_histogram.csv");
+//            out_csv << "t,Et" << endl;
+//            for(auto t = 0; t < 256; t++) {
+//                out_csv << t << "," << E_evalVet[t] << endl;
+//            }
         }
 
         /**
@@ -97,6 +102,7 @@ namespace DibAlgs {
          *     image generation from OpenCV docs:
          *     https://docs.opencv.org/4.x/de/d01/samples_2cpp_2connected_components_8cpp-example.html#a3
          */
+
         static void saveConnectedComponentsImage(int nLabels, Mat img, Mat labelImage) {
             cout << "Connected components: " << nLabels << endl;
             std::vector<Vec3b> colors(nLabels);
